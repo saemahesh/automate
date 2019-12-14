@@ -1,0 +1,24 @@
+{
+  "name": "command_line_dictionary",
+  "version": "1.0.0",
+  "description": "command_line_dictionary",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/saemahesh/automate.git"
+  },
+  "author": "Sai Mahesh R",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/saemahesh/automate/issues"
+  },
+  "homepage": "https://github.com/saemahesh/automate#readme",
+  "dependencies": {
+    "axios": "^0.19.0",
+    "dotenv": "^8.2.0",
+    "readline-sync": "^1.4.10"
+  }
+}

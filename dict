@@ -1,0 +1,293 @@
+#!/usr/bin/env node
+
+const readline_sync = require('readline-sync');
+require("dotenv").config();
+const axios = require('axios');
+const args = process.argv;
+var user_word = args[3];
+var user_type = args[2];
+
+const getApiData = (type, word) => {
+    return new Promise((resolve, reject) => {
+        axios.get(process.env.HOST + `word/` + word + `/${type}?api_key=` + process.env.API_KEY)
+            .then(data => {
+                resolve(data)
+            }).catch(err => {
+                reject(err);
+            });
+    });
+};
+
+const congrats = () => {
+    console.log(`\n\t\t\t#######################################################
+                        #                                                     #
+                        #        Congratulations !  Your guess is right       #
+                        #                                                     #
+                        #######################################################`);
+}
+
+const Beautify = (total_data) => {
+    let data = [];
+    for (let item of total_data) {
+        if (item.text) {
+            data.push('* ' + item.text);
+        } else {
+            data.push('* ' + item);
+        }
+    }
+    return `########################################################################################\n\n` +
+        data.join('\n\n') +
+        `\n\n########################################################################################\n\n`;
+};
+
+
+const stringPermutations = str => {
+    if (str.length <= 2) return str.length === 2 ? [str, str[1] + str[0]] : [str];
+    return str
+        .split('')
+        .reduce(
+            (acc, letter, i) =>
+            acc.concat(stringPermutations(str.slice(0, i) + str.slice(i + 1)).map(val => letter + val)),
+            []
+        );
+};
+
+const showAllWords = (word) => {
+    let word_not_found = false;
+    getApiData('definitions', word)
+        .then(res => {
+            console.log(`\n\t\t\tDefinitions of '${word}' ↓`)
+            console.log(Beautify(res.data));
+        }).catch(err => {
+            if (!word_not_found) {
+                console.log("Sorry ,The word you've entered isn't found in the dictionary !");
+                word_not_found = true;
+            }
+        });
+    getApiData('relatedWords', word)
+        .then(res => {
+            if (res.data.length > 1) {
+                console.log(`\n\t\t\tSynonyms of '${word}' ↓ `)
+                console.log(Beautify(res.data[1].words));
+                console.log(`\n\t\t\tAntonyms of '${word}' ↓ `)
+                console.log(Beautify(res.data[0].words));
+            } else {
+                console.log(`\n\t\t\tSynonyms of '${word}' ↓ `)
+                console.log(Beautify(res.data[0].words))
+            }
+        }).catch(err => {
+            if (!word_not_found) {
+                console.log("Sorry ,The word you've entered isn't found in the dictionary !");
+                word_not_found = true;
+            }
+        });
+
+    getApiData('examples', word)
+        .then(res => {
+            console.log(`\n\t\t\tExamples of '${word}' ↓`)
+            console.log(Beautify(res.data.examples))
+        }).catch(err => {
+            if (!word_not_found) {
+                console.log("Sorry ,The word you've entered isn't found in the dictionary !");
+                word_not_found = true;
+            }
+        });
+};
+
+
+const init = () => {
+    switch (user_type) {
+        case 'defn':
+            getApiData('definitions', user_word)
+                .then(res => {
+                    console.log(`\n\t\t\tDefinitions for '${user_word}' ↓ `)
+                    console.log(Beautify(res.data));
+                }).catch(err => {
+                    console.log("Sorry ,The word you've entered isn't found in the dictionary !")
+                });
+            break;
+        case 'syn':
+            getApiData('relatedWords', user_word)
+                .then(res => {
+                    if (res.data.length > 1) {
+                        console.log(`\n\t\t\tSynonyms for '${user_word}' ↓`)
+                        console.log(Beautify(res.data[1].words));
+                    } else {
+                        console.log(`\n\t\t\tSynonyms for '${user_word}' ↓`)
+                        console.log(Beautify(res.data[0].words))
+                    }
+                }).catch(err => {
+                    console.log("Sorry ,The word you've entered isn't found in the dictionary !")
+                })
+            break;
+        case 'ant':
+            getApiData('relatedWords', user_word)
+                .then(res => {
+                    if (res.data.length > 1) {
+                        console.log(`\n\t\t\tAntonyms for '${user_word}' ↓`)
+                        console.log(Beautify(res.data[0].words));
+                    } else {
+                        console.log("Sorry We cannot find Antonym for the word in dictionary")
+                    }
+                }).catch(err => {
+                    console.log("Sorry ,The word you've entered isn't found in the dictionary !")
+                })
+            break;
+        case 'ex':
+            getApiData('examples', user_word)
+                .then(res => {
+                    console.log(`\n\t\t\t Examples for '${user_word}' ↓`)
+                    console.log(Beautify(res.data.examples))
+                }).catch(err => {
+                    console.log("Sorry ,The word you've entered isn't found in the dictionary !")
+                })
+            break;
+        case undefined:
+            // console.log('undefined state');
+            axios.get(process.env.HOST + 'words/randomWord?api_key=' + process.env.API_KEY)
+                .then(res => {
+                    showAllWords(res.data.word)
+                }).catch(err => {
+                    console.log("Sorry Word not found in dictionary")
+                })
+            break;
+        case 'play':
+            axios.get(process.env.HOST + 'words/randomWord?api_key=' + process.env.API_KEY)
+                .then(res => {
+                    let word = res.data.word;
+                    let permutations = stringPermutations(word);
+                    getApiData('definitions', word)
+                        .then(async res => {
+                            let game_over = false;
+                            var dice_items = ['jumble', 'defn', 'syn', 'ant'];
+                            const definitions_data = res.data;
+                            let definitions_index = 0;
+                            console.log(definitions_data[definitions_index++].text)
+                            let relatedWords = await getApiData('relatedWords', word);
+                            let synonym_index = 0,
+                                antonym_index = 0;
+                            let synonyms, antonyms;
+                            if (relatedWords.data.length > 1) {
+                                antonyms = relatedWords.data[0].words;
+                                synonyms = relatedWords.data[1].words;
+                            } else {
+                                synonyms = relatedWords.data[0].words;
+                            }
+                            // console.log('word ', word, synonyms);
+
+                            let user_input = readline_sync.question("Can you guess the word for this definition ?? \n")
+                            if (user_input === word || synonyms.includes(user_input)) {
+                                congrats();
+                                game_over = true;
+                            } else {
+                                while (true) {
+                                    if (game_over) {
+                                        break;
+                                    } else {
+                                        let choice = readline_sync.question(`\nChoose Among these 3 options : 
+                                                                                 \n1)Try again
+                                                                                 \n2)Hint
+                                                                                 \n3)Quit
+                                                                                 \n`);
+                                        choice = Number(choice);
+                                        switch (choice) {
+                                            case 1:
+                                                user_input = readline_sync.question("Enter Your Word again\n");
+                                                if (word === user_input || synonyms.includes(user_input)) {
+                                                    congrats();
+                                                    game_over = true;
+                                                } else {
+                                                    console.log("Sorry ! That's wrong answer.")
+                                                }
+                                                break;
+                                            case 2:
+                                                console.log("Here is the hint for you :");
+                                                if (!antonyms || !antonyms.length) { //most of the times , antonyms won't present.
+                                                    dice_items = dice_items.filter(e => e !== 'ant');
+                                                }
+                                                var dice_random = Math.floor(Math.random() * (dice_items.length));
+                                                let hint = dice_items[dice_random]
+                                                // console.log('hint , ', hint, dice_random, dice_items)
+                                                switch (hint) {
+                                                    case 'jumble':
+                                                        console.log("The letters are jumbled, can you guess now?");
+                                                        const random_index = Math.floor(Math.random() * permutations.length + 1);
+                                                        console.log(permutations[random_index]);
+
+                                                        user_input = readline_sync.question("Enter Your Word again\n");
+                                                        if (word === user_input || synonyms.includes(user_input)) {
+                                                            congrats();
+                                                            game_over = true;
+                                                        } else {
+                                                            console.log("Sorry ! That's wrong answer.")
+                                                        }
+                                                        break;
+                                                    case 'defn':
+                                                        console.log("It is the another definition of the word ?");
+                                                        console.log(definitions_data[definitions_index++].text);
+                                                        user_input = readline_sync.question("Enter Your Word again\n");
+                                                        if (word === user_input || synonyms.includes(user_input)) {
+                                                            congrats();
+                                                            game_over = true;
+                                                        } else {
+                                                            console.log("Sorry ! That's wrong answer.")
+                                                        }
+                                                        if (definitions_data.length == definitions_index) {
+                                                            dice_items = dice_items.filter(e => e !== hint);
+                                                        }
+                                                        break;
+                                                    case 'syn':
+                                                        console.log('This is the synonym of the word , can you guess now?')
+                                                        console.log(synonyms[synonym_index++])
+                                                        user_input = readline_sync.question("Enter Your Word again\n");
+                                                        if (word === user_input || synonyms.includes(user_input)) {
+                                                            congrats();
+                                                            game_over = true;
+                                                        } else {
+                                                            console.log("Sorry ! That's wrong answer.")
+                                                        }
+                                                        if (synonyms.length == synonym_index) {
+                                                            dice_items = dice_items.filter(e => e !== hint);
+                                                        }
+                                                        break;
+                                                    case 'ant':
+                                                        console.log('This is the antonym of the word , can you guess now?')
+                                                        console.log(antonyms[antonym_index++])
+                                                        user_input = readline_sync.question("Enter Your Word again\n");
+                                                        if (word === user_input || synonyms.includes(user_input)) {
+                                                            congrats();
+                                                            game_over = true;
+                                                        } else {
+                                                            console.log("Sorry ! That's wrong answer.")
+                                                        }
+                                                        if (antonyms.length == antonym_index) {
+                                                            dice_items = dice_items.filter(e => e !== hint);
+                                                        }
+                                                        break;
+                                                }
+                                                break;
+                                            case 3:
+                                                game_over = true;
+                                                console.log(`\nYou quit the game ! Answer is '${word}'.`);
+                                                showAllWords(word);
+                                                break;
+                                        }
+                                    }
+                                }
+                            }
+                        }).catch(err => {
+                            console.log("Sorry ,The word you've entered isn't found in the dictionary !")
+                        })
+                }).catch(err => {
+                    console.log("Sorry ,The word you've entered isn't found in the dictionary !")
+                })
+            break;
+        default:
+            // console.log('default state');
+            user_word = user_type;
+            showAllWords(user_word);
+            break;
+    }
+}
+
+init();
